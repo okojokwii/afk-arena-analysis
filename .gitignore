@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+research/raw/**/*.html
+data/my_account/screenshots/*
+!data/my_account/screenshots/.gitkeep
+mirroring/captures/
