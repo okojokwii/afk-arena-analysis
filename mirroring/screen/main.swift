@@ -7,7 +7,7 @@
 //   afk-screen bar <png> x,y,w,h            HP バーの残りの割合 → {"fraction":…, "color":"green|yellow|red|none"}
 //   afk-screen hash <png>                   画面が変わったかを見るための 64bit の指紋 → {"hash":"…"}
 //   afk-screen crop <png> x,y,w,h <out.png> 範囲を切り出して保存（調整用）
-//   afk-screen tap x,y                       窓内の割合座標をクリック（タップ）
+//   afk-screen tap x,y                       窓内の割合座標をクリック（タップ）。カーソルと前面アプリは元に戻す
 //   afk-screen swipe x1,y1 x2,y2 [ms]        ドラッグ（スクロール）
 //   afk-screen sig <png> x,y,w,h [...]      アイコンの見分け用の特徴（16×16 の RGB、0〜255 の 768 個）。範囲は複数指定できる
 //
@@ -191,6 +191,18 @@ func mouse(_ type: CGEventType, _ p: CGPoint) {
     CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
 }
 
+/// 操作の前の状態（カーソル位置と前面のアプリ）を覚えておき、終わったら戻す
+func withRestore(_ body: () -> Void) {
+    let cursor = CGEvent(source: nil)?.location ?? .zero
+    let front = NSWorkspace.shared.frontmostApplication
+    activateMirroring()
+    body()
+    usleep(30_000)
+    CGWarpMouseCursorPosition(cursor)
+    CGAssociateMouseAndMouseCursorPosition(1)
+    if let f = front, !mirroringOwners.contains(f.localizedName ?? "") { f.activate() }
+}
+
 func activateMirroring() {
     NSWorkspace.shared.runningApplications.first { app in mirroringOwners.contains(app.localizedName ?? "") }?.activate()
     usleep(150_000)
@@ -233,14 +245,13 @@ case "crop":
 case "tap":
     guard args.count >= 3 else { fail("tap x,y") }
     let p = toScreen(args[2])
-    activateMirroring()
-    mouse(.leftMouseDown, p); usleep(60_000); mouse(.leftMouseUp, p)
+    withRestore { mouse(.leftMouseDown, p); usleep(60_000); mouse(.leftMouseUp, p) }
     emit(["tap": [p.x, p.y]])
 case "swipe":
     guard args.count >= 4 else { fail("swipe x1,y1 x2,y2 [ms]") }
     let a = toScreen(args[2]), b = toScreen(args[3])
     let ms = args.count >= 5 ? Double(args[4]) ?? 400 : 400
-    activateMirroring()
+    withRestore {
     mouse(.leftMouseDown, a)
     let steps = 20
     for i in 1...steps {
@@ -249,6 +260,7 @@ case "swipe":
         usleep(useconds_t(ms * 1000 / Double(steps)))
     }
     mouse(.leftMouseUp, b)
+    }
     emit(["swipe": [[a.x, a.y], [b.x, b.y]]])
 default:
     fail("不明なコマンド: \(args[1])")
