@@ -7,3 +7,4 @@ research/raw/**/*.html
 data/my_account/screenshots/*
 !data/my_account/screenshots/.gitkeep
 mirroring/captures/
+mirroring/screen/afk-screen
